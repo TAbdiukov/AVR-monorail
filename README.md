@@ -7,3 +7,7 @@ for COMP2121
 - add the hash key
 - pressing too fast
 - display zero properly
+
+## Due time
+Oct 26 FRI
+12:00-12:20 PM
