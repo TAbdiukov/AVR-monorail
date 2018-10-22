@@ -153,6 +153,7 @@
 	do_lcd_data 'r'
 	do_lcd_data 'r'
 	do_lcd_data '!'
+	do_lcd_data ' '
 .endmacro
 .macro clear
 ldi YL, low(@0)
@@ -903,8 +904,10 @@ question:
 ////convert result to character
 ///////////////////////////////
 convert_char:
-	rcall sleep_350ms                                             ;add a debouncing here, at first it's not stable,when we detect a key pushed
-																	;wait until disturbing signal disappear then convert
+	;add a debouncing here, at first it's not stable,when we detect a key pushed
+	rcall sleep_100ms
+	
+	;wait until disturbing signal disappear then convert
 	cpi col, 3										
 	breq letters
 	cpi col, 2
@@ -956,11 +959,23 @@ remain:
 	ldi count_letter,0b00000000
 	rjmp final
 delete:
+	; move cursor to the correct pos
 	lds r16, Position
 	cpi r16, 1
+	breq cursor_decremented
 		dec r16
+	    do_lcd_command_imme r16
 		sts Position,r16
+	
+	cursor_decremented:
+	
+	cpi count_letter, 0b00000000
+	breq letters_decremented
+		dec count_letter
 		do_lcd_data ' '
+		
+	letters_decremented:
+	
 	rcall sleep_350ms 
 	rjmp ending
 	
@@ -1240,7 +1255,14 @@ increase:
 	inc r16
 	rcall sleep_5ms
 	rjmp d_loop
-
+sleep_100ms:
+	clr r16
+	d_loop100:
+		inc r16
+		rcall sleep_5ms
+		cpi r16, 70
+		brne d_loop100
+	ret
 sleep_350ms:
 	clr r16
 	d_loop1:
@@ -1251,3 +1273,7 @@ increase1:
 	inc r16
 	rcall sleep_5ms
 	rjmp d_loop1
+increaseNew:
+	inc r16
+	rcall sleep_5ms
+	ret
