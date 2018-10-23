@@ -12,7 +12,7 @@
 .def finish_input_flag =r25		;0 is pushed, input finish
 .def temp_count_for_question =r2
 .def keypad_version = r3		;char - 0 num - 1
-.def input10 = r4
+//.def input10 = r4 unused
  
 
 .equ PORTLDIR = 0xF0
@@ -73,6 +73,8 @@
 	do_lcd_data 'o'
 	do_lcd_data 'r'
 	do_lcd_data ':'
+	do_lcd_data ' '
+	do_lcd_command 0b11000000
 .endmacro
 //
 .macro station_name
@@ -820,6 +822,7 @@ print_all:
 			dec temp2
 			rjmp print_name
 		show_station_end:
+			do_lcd_data ' '
 			lds temp,count_question
 			inc temp
 			sts count_question,temp
