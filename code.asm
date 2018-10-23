@@ -738,6 +738,7 @@ partc:
 			do_lcd_data 'o'
 			do_lcd_data 'r'
 			do_lcd_data ':'
+			do_lcd_data ' '
 			do_lcd_command 0b11000000
 			lds r17,count_question
 			dec r17
@@ -905,7 +906,7 @@ question:
 ///////////////////////////////
 convert_char:
 	;add a debouncing here, at first it's not stable,when we detect a key pushed
-	rcall sleep_100ms
+	rcall sleep_350ms
 	
 	;wait until disturbing signal disappear then convert
 	cpi col, 3										
