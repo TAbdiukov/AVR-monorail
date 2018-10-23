@@ -1237,7 +1237,6 @@ delayloop_1ms:
 	pop r25
 	pop r24
 	ret
-
 sleep_5ms:
 	rcall sleep_1ms
 	rcall sleep_1ms
@@ -1247,33 +1246,25 @@ sleep_5ms:
 	ret
 sleep_1000ms:
 	clr r16
-	d_loop:
-	cpi r16, 200
-	brne increase
-	ret
-increase:
-	inc r16
-	rcall sleep_5ms
-	rjmp d_loop
-sleep_100ms:
-	clr r16
-	d_loop100:
+	d_loop1000ms:
 		inc r16
 		rcall sleep_5ms
-		cpi r16, 70
-		brne d_loop100
+		cpi r16, 200
+		brne d_loop1000ms
+	ret
+sleep_100ms:
+	clr r16
+	d_loop100ms:
+		inc r16
+		rcall sleep_5ms
+		cpi r16, 20
+		brne d_loop100ms
 	ret
 sleep_350ms:
 	clr r16
-	d_loop1:
-	cpi r16, 70
-	brne increase1
-	ret
-increase1:
-	inc r16
-	rcall sleep_5ms
-	rjmp d_loop1
-increaseNew:
-	inc r16
-	rcall sleep_5ms
+	d_loop350ms:
+		inc r16
+		rcall sleep_5ms
+		cpi r16, 70
+		brne d_loop350ms
 	ret
