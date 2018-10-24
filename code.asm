@@ -433,6 +433,7 @@ input_wait:
 	lds r24,SecondCounter
 	cpi r24, 1
 	brsh restart
+	rjmp noAction
 restart:
 	cli
 	clear TempCounter
@@ -949,7 +950,6 @@ letters:
 
 c_for_finish:
 	ldi finish_input_flag,1
-	call Timer0OVF
 	rjmp ending
 convert_end:
 	add temp, count_letter
