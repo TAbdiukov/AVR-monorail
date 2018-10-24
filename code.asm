@@ -11,7 +11,7 @@
 .def letter_num = r24			;maximum number
 .def finish_input_flag =r25		;0 is pushed, input finish
 .def temp_count_for_question =r2
-.def keypad_version = r3		;char - 0 num - 1
+.def keypad_mode = r3		;char - 0 num - 1
 //.def input10 = r4 unused
  
 
@@ -456,7 +456,7 @@ noAction:
 	ldi count_letter,0b00000000
 	rjmp go_EndIF
 ///////////////////////////
-//do motor and led at here
+//do motor and led here
 partc_timer:
 	
 	push temp
@@ -521,7 +521,7 @@ main:
 	///////////////////////////////////
 	stop_maximum
 	ldi temp,1        ;1 is for num pad
-	mov keypad_version , temp
+	mov keypad_mode , temp
 	rcall keypad_part
 	lds temp, TempNumInfo
 	cpi temp, 11
@@ -536,7 +536,7 @@ wrong_info_max:
 
 ask_stop_name:
 	do_lcd_command 0b00000001 ; clear display
-	clr keypad_version
+	clr keypad_mode
 	lds temp, count_question ;start from 0
 	lds r16, Maximum
 	cp temp, r16
@@ -549,6 +549,7 @@ ask_stop_name:
 	rcall store_name ;store name store
 	station_name r1
 	rcall keypad_part
+
 	mov r1, temp_count_for_question
 	inc r1
 	sts count_question, r1
@@ -569,7 +570,7 @@ ask_stop_time:
 	add r1,r16
 	stop_time r1
 	ldi temp,1          ;1 is for num pad
-	mov keypad_version , temp
+	mov keypad_mode , temp
 	rcall keypad_part
 	rjmp back_to_time   ;check overflow for station time
 back_to_head:                                        
@@ -678,7 +679,7 @@ partc:
 	ldi temp, 1
 	sts Status, temp
 	ldi temp,2
-	mov keypad_version, temp
+	mov keypad_mode, temp
 	ldi temp, 1
 	sts hash_flag, temp
 	clr temp
@@ -879,12 +880,12 @@ rowloop:
 	mov temp2, temp
 	and temp2, mask       ; check masked bit
 	brne skipconv 
-	mov temp, keypad_version
+	mov temp, keypad_mode
 	cpi temp, 1
-	breq call_num
+		breq call_num
 	cpi temp, 2
-	breq call_working
-	rcall convert_char     ; if bit is clear, convert the bitcode
+		breq call_recursive
+	rcall convert_char
 back:
 	cpi finish_input_flag, 1
 	breq question
@@ -906,7 +907,7 @@ nextcol:
 call_num:
 	rcall convert_num
 	rjmp back
-call_working:
+call_recursive:
 	rjmp keypad_part
 question:
 	ldi r16, second_line			;restart all things for keypad
@@ -927,7 +928,6 @@ convert_char:
 	;wait until disturbing signal disappear then convert
 	cpi col, 3										
 	breq letters
-	cpi col, 2
 	mov temp, row 
 	lsl temp 
 	add temp, row
