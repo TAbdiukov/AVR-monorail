@@ -12,7 +12,6 @@
 .def finish_input_flag =r25		;0 is pushed, input finish
 .def temp_count_for_question =r2
 .def keypad_mode = r3		;char - 0 num - 1
-//.def input10 = r4 unused
  
 
 .equ PORTLDIR = 0xF0
@@ -20,6 +19,8 @@
 .equ INITROWMASK = 0x01
 .equ ROWMASK = 0x0F
 .equ second_line = 0b10101000
+
+.equ PHONELIKEKEYPAD = 1
 
 ////
 	;lcd operation
@@ -928,6 +929,7 @@ convert_char:
 	;wait until disturbing signal disappear then convert
 	cpi col, 3										
 	breq letters
+	
 	mov temp, row 
 	lsl temp 
 	add temp, row
@@ -958,9 +960,7 @@ final:
 	cpi letter_num, 11
 	brsh no_num
 	clr push_flag
-	cpi temp,0b01011011 
-	brne go_on
-	ldi temp, 0b10100000
+	; rjmp normal
 normal:
 	mov row,temp             ;row is useless now ,so treat it as another temp
 	lds r16, Position
@@ -969,9 +969,8 @@ normal:
 	clear TempCounter
 	clear SecondCounter
 ending:
-	ret                     ; return to caller
-go_on:
-	rjmp normal
+	ldi temp, 0b10100000
+	ret                     ; return to caller	
 remain:
 	ldi count_letter,0b00000000
 	rjmp final
