@@ -421,7 +421,7 @@ NotSecond:
 	cpi r24,0
 	breq EndIF
 	rcall partc_timer
-EndIF:
+	EndIF:
 	pop r24
 	pop r25
 	pop YL
@@ -433,8 +433,6 @@ input_wait:
 	lds r24,SecondCounter
 	cpi r24, 1
 	brsh restart
-go_EndIF:
-	rjmp EndIF
 restart:
 	cli
 	clear TempCounter
@@ -451,11 +449,12 @@ restart:
 	st y+,row
 	sts current_name_pointer,yl
 	sts current_name_pointer+1,yh
-	do_lcd_data_imme row	
+	;do_lcd_data_imme row	
 noAction:
 	sei
 	ldi count_letter,0b00000000
-	rjmp go_EndIF
+
+	rjmp EndIF
 ///////////////////////////
 //do motor and led here
 partc_timer:
@@ -950,6 +949,7 @@ letters:
 
 c_for_finish:
 	ldi finish_input_flag,1
+	call Timer0OVF
 	rjmp ending
 convert_end:
 	add temp, count_letter
@@ -969,7 +969,6 @@ normal:
 	clear TempCounter
 	clear SecondCounter
 ending:
-	ldi temp, 0b10100000
 	ret                     ; return to caller	
 remain:
 	ldi count_letter,0b00000000
