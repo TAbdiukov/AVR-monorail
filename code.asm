@@ -6,7 +6,7 @@
 .def col =r18
 .def mask =r19
 .def temp2 =r20
-.def count_letter =r22          ;multiple times 
+.def count_letter =r22		  ;multiple times 
 .def push_flag=r23				;whether any button has pushed
 .def letter_num = r24			;maximum number
 .def finish_input_flag =r25		;0 is pushed, input finish
@@ -230,9 +230,9 @@ time_data: .byte 10
 .org 0x0
 jmp RESET
 
-.org INT0addr    ; INT0addr is the address of EXT_INT0  
+.org INT0addr	; INT0addr is the address of EXT_INT0  
 jmp EXT_INT0 
-.org INT1addr    ; INT1addr is the address of EXT_INT1 
+.org INT1addr	; INT1addr is the address of EXT_INT1 
 jmp EXT_INT1
 jmp DEFAULT
 .org OVF0addr
@@ -246,7 +246,7 @@ out SPL, temp
 ldi temp, high(RAMEND)
 out SPH, temp
 ldi temp, PORTLDIR ; columns are outputs, rows are inputs
-STS DDRL, temp     ; cannot use out
+STS DDRL, temp	 ; cannot use out
 ser temp
 out DDRC, temp ; Make PORTC all outputs
 clr temp
@@ -274,11 +274,11 @@ time_setup:
 	clear TempCounter
 	clear SecondCounter
 	ldi temp,0b00000000
-	out TCCR0A,temp     ;set mode 000- normal mode
+	out TCCR0A,temp	 ;set mode 000- normal mode
 	ldi temp,0b00000010
-	out TCCR0B,temp     ;set prescaler - 8
+	out TCCR0B,temp	 ;set prescaler - 8
 	ldi temp, 1<<TOIE0  ;time overflow from 3 kinds of overflow cmpA,cmpB,time overflow
-	sts TIMSK0,temp     ;apply to mask
+	sts TIMSK0,temp	 ;apply to mask
 
 	
 	 
@@ -369,10 +369,10 @@ EXT_INT1: ; PB1
 			sts OCR3BL,temp
 			clr temp 
 			sts OCR3BH, temp
-			ldi temp, (1 << CS30)               ; CS31=1: no prescaling 
-			sts TCCR3B, temp    
+			ldi temp, (1 << CS30)			   ; CS31=1: no prescaling 
+			sts TCCR3B, temp	
 			ldi temp, (1<< WGM30)|(1<<COM3B1)   ; WGM30=1: phase correct PWM, 8 bits  
-											    ; COM3B1=1: make OC3B override the normal port functionality of the I/O pin PL3 
+												; COM3B1=1: make OC3B override the normal port functionality of the I/O pin PL3 
 			sts TCCR3A, temp
 	*/
 
@@ -438,7 +438,7 @@ restart:
 	cli
 	clear TempCounter
 	clear SecondCounter
-	sbrc push_flag,0                ;if 0, then there is a char pressed 
+	sbrc push_flag,0				;if 0, then there is a char pressed 
 	rjmp noAction
 	lds r24,Position
 	inc r24
@@ -490,7 +490,7 @@ partc_timer:
 			clr temp 
 			sts OCR3BH, temp
 			ldi temp, (1 << CS30) 
-			sts TCCR3B, temp    
+			sts TCCR3B, temp	
 			ldi temp, (1<< WGM30)|(1<<COM3B1)  
 			sts TCCR3A, temp
 			rjmp partc_timer_end //havenot done this part let it stop
@@ -521,7 +521,7 @@ main:
 		;get and store information
 	///////////////////////////////////
 	stop_maximum
-	ldi temp,1        ;1 is for num pad
+	ldi temp,1		;1 is for num pad
 	mov keypad_mode , temp
 	rcall keypad_part
 	lds temp, TempNumInfo
@@ -565,16 +565,16 @@ ask_stop_time:
 	lds r16, Maximum
 	dec r16
 	cp r1, r16
-	brsh back_to_head                       
+	brsh back_to_head					   
 	inc r1
 	ldi r16, 0b00110000
 	add r1,r16
 	stop_time r1
-	ldi temp,1          ;1 is for num pad
+	ldi temp,1		  ;1 is for num pad
 	mov keypad_mode , temp
 	rcall keypad_part
 	rjmp back_to_time   ;check overflow for station time
-back_to_head:                                        
+back_to_head:										
 	lds r1, count_question
 	mov r16, r1
 	cpi r16, 1
@@ -646,7 +646,7 @@ wrong_station_info:
 	
 	clearonebyte TempNumInfo
 	rjmp ask_stop_time
-     //////////////////////////////////
+	 //////////////////////////////////
 		;part c
 		;show stored information
 	///////////////////////////////////// 
@@ -666,8 +666,8 @@ partc:
 	clr temp 
 	sts OCR3BH, temp
 	ldi temp, (1 << CS30) 
-	sts TCCR3B, temp    
-	ldi temp, (1<< WGM30)|(1<<COM3B1)    
+	sts TCCR3B, temp	
+	ldi temp, (1<< WGM30)|(1<<COM3B1)	
 	sts TCCR3A, temp
 
 	rcall sleep_1000ms
@@ -690,12 +690,12 @@ partc:
 	print_data:
 		ldi temp, 0b00111100
 		out DDRE, temp  
-		ldi temp, 0xff    
+		ldi temp, 0xff	
 		sts OCR3BL,temp
 		clr temp 
 		sts OCR3BH, temp
 		ldi temp, (1 << CS30)  
-		sts TCCR3B, temp    
+		sts TCCR3B, temp	
 		ldi temp, (1<< WGM30)|(1<<COM3B1)   
 		sts TCCR3A, temp
 		rcall store_time
@@ -864,22 +864,22 @@ keypad_part:
 	ldi mask, INITCOLMASK ; initial column mask
 	clr col				  ; initial column
 colloop:
-	STS PORTL, mask       ; set column to mask value
-                          ; (sets column 0 off)
-	ldi temp, 0xFF        ; implement a delay so the
-                          ; hardware can stabilize
+	STS PORTL, mask	   ; set column to mask value
+						  ; (sets column 0 off)
+	ldi temp, 0xFF		; implement a delay so the
+						  ; hardware can stabilize
 delay:
 	dec temp
 	brne delay
-	LDS temp, PINL        ; read PORTL. Cannot use in 
-	andi temp, ROWMASK    ; read only the row bits
-	cpi temp, 0xF         ; check if any rows are grounded
-	breq nextcol          ; if not go to the next column
+	LDS temp, PINL		; read PORTL. Cannot use in 
+	andi temp, ROWMASK	; read only the row bits
+	cpi temp, 0xF		 ; check if any rows are grounded
+	breq nextcol		  ; if not go to the next column
 	ldi mask, INITROWMASK ; initialise row check
-	clr row               ; initial row
-rowloop:      
+	clr row			   ; initial row
+rowloop:	  
 	mov temp2, temp
-	and temp2, mask       ; check masked bit
+	and temp2, mask	   ; check masked bit
 	brne skipconv 
 	mov temp, keypad_mode
 	cpi temp, 1
@@ -890,21 +890,21 @@ rowloop:
 back:
 	cpi finish_input_flag, 1
 	breq question
-	jmp keypad_part        ; and start again
+	jmp keypad_part		; and start again
 skipconv:
-	inc row                ; else move to  the next row
-	lsl mask               ; shift the mask to the next bit
-	jmp rowloop          
-nextcol:     
-	cpi col, 3             ; check if we^re on the last column
-	breq keypad_part       ; if so, no buttons were pushed,
-                           ; so start again.
+	inc row				; else move to  the next row
+	lsl mask			   ; shift the mask to the next bit
+	jmp rowloop		  
+nextcol:	 
+	cpi col, 3			 ; check if we^re on the last column
+	breq keypad_part	   ; if so, no buttons were pushed,
+						   ; so start again.
 
-	sec                    ; else shift the column mask:
-                           ; We must set the carry bit
-	rol mask               ; and then rotate left by a bit,
-	inc col                ; increment column value
-	jmp colloop            ; and check the next column
+	sec					; else shift the column mask:
+						   ; We must set the carry bit
+	rol mask			   ; and then rotate left by a bit,
+	inc col				; increment column value
+	jmp colloop			; and check the next column
 call_num:
 	rcall convert_num
 	rjmp back
@@ -962,7 +962,7 @@ final:
 	clr push_flag
 	; rjmp normal
 normal:
-	mov row,temp             ;row is useless now ,so treat it as another temp
+	mov row,temp			 ;row is useless now ,so treat it as another temp
 	lds r16, Position
 	do_lcd_command_imme r16
 	do_lcd_data_imme row
@@ -970,7 +970,7 @@ normal:
 	clear SecondCounter
 	ldi row, 95 ; row = "_"
 ending:
-	ret                     ; return to caller	
+	ret					 ; return to caller	
 remain:
 	ldi count_letter,0b00000000
 	rjmp final
@@ -980,7 +980,7 @@ delete:
 	cpi r16, 1
 	breq cursor_decremented
 		dec r16
-	    do_lcd_command_imme r16
+		do_lcd_command_imme r16
 		sts Position,r16
 	
 	cursor_decremented:
@@ -1004,7 +1004,7 @@ no_num:
 convert_num:
 	cli
 	rcall sleep_350ms 
-                                            ;add a debouncing here, at first it's not stable,when we detect a key pushed
+								;add a debouncing here, at first it's not stable,when we detect a key pushed
 	cpi col, 3 					;wait until disturbing signal disappear then convert					
 	breq num_letter
 	
@@ -1027,7 +1027,7 @@ convert_num:
 	breq time10
 update_tempnum:
 	lds temp2,TempNumInfo
-	add temp2, temp                                    ;push = 0, has pressed
+	add temp2, temp									;push = 0, has pressed
 	sts TempNumInfo, temp2
 	ldi r16,48
 	add temp,r16
@@ -1229,7 +1229,7 @@ lcd_wait_loop:
 	lcd_set LCD_E
 	nop
 	nop
-    nop
+	nop
 	in r16, PINF
 	lcd_clr LCD_E
 	sbrc r16, 7
