@@ -995,6 +995,16 @@ convert_num:
                                             ;add a debouncing here, at first it's not stable,when we detect a key pushed
 	cpi col, 3 					;wait until disturbing signal disappear then convert					
 	breq num_letter
+	
+	; If zero
+	isZeroPressedChk:
+		cpi col, 1
+		brne isZeroPressedChkFin
+		cpi row, 3
+		breq zero_num
+		
+	isZeroPressedChkFin:
+	
 	mov temp, row 
 	lsl temp 
 	add temp, row 
