@@ -307,7 +307,7 @@ time_setup:
 	do_lcd_command 0b00001000 ; display off?
 	do_lcd_command 0b00000001 ; clear display
 	do_lcd_command 0b00000110 ; increment, no display shift
-	do_lcd_command 0b00001110 ; Cursor on, bar, no blink
+	do_lcd_command 0b00001100 ; Cursor OFF, bar, no blink
 	;clr line
 	//
 
@@ -450,7 +450,7 @@ restart:
 	st y+,row
 	sts current_name_pointer,yl
 	sts current_name_pointer+1,yh
-	;do_lcd_data_imme row	
+	do_lcd_data_imme row	
 noAction:
 	sei
 	ldi count_letter,0b00000000
@@ -968,6 +968,7 @@ normal:
 	do_lcd_data_imme row
 	clear TempCounter
 	clear SecondCounter
+	ldi row, 95 ; row = "_"
 ending:
 	ret                     ; return to caller	
 remain:
