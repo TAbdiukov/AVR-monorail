@@ -21,6 +21,19 @@
 .equ ROWMASK = 0x0F
 .equ second_line = 0b10101000
 
+////
+	;lcd operation
+////
+.equ LCD_RS = 7
+.equ LCD_E = 6
+.equ LCD_RW = 5
+.equ LCD_BE = 4
+
+
+.equ F_CPU = 16000000
+.equ DELAY_1MS = F_CPU / 4 / 1000 - 4
+; 4 cycles per iteration - setup/call-return overhead
+
 .macro do_lcd_command
 	ldi r16, @0
 	rcall lcd_command
@@ -1165,14 +1178,6 @@ store_time:
 		sei
 		ret
 
-////
-	;lcd operation
-////
-.equ LCD_RS = 7
-.equ LCD_E = 6
-.equ LCD_RW = 5
-.equ LCD_BE = 4
-
 .macro lcd_set
 	sbi PORTA, @0
 .endmacro
@@ -1235,10 +1240,6 @@ lcd_wait_loop:
 	out DDRF, r16
 	pop r16
 	ret
-
-.equ F_CPU = 16000000
-.equ DELAY_1MS = F_CPU / 4 / 1000 - 4
-; 4 cycles per iteration - setup/call-return overhead
 
 sleep_1ms:
 	push r24
