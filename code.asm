@@ -1,5 +1,3 @@
-;FINAL
-
 .include "m2560def.inc"
 .def temp =r21
 .def row =r17
@@ -19,8 +17,6 @@
 .equ INITROWMASK = 0x01
 .equ ROWMASK = 0x0F
 .equ second_line = 0b10101000
-
-.equ PHONELIKEKEYPAD = 1
 
 ////
 	;lcd operation
@@ -228,16 +224,14 @@ time_data: .byte 10
 
 .cseg
 .org 0x0
-jmp RESET
+	jmp RESET
+	jmp EXT_INT0						; IRQ0 Handler
+	jmp EXT_INT1						; IRQ1 Handler
+	;jmp INTERRUPT2 					; IRQ2 Handler
 
-.org INT0addr	; INT0addr is the address of EXT_INT0  
-jmp EXT_INT0 
-.org INT1addr	; INT1addr is the address of EXT_INT1 
-jmp EXT_INT1
-jmp DEFAULT
 .org OVF0addr
-jmp Timer0OVF 
- 
+	jmp Timer0OVF 
+
 DEFAULT:reti
 
 RESET:
@@ -323,7 +317,7 @@ EXT_INT0: ;(PB0)
 	out SREG, temp 
 	pop temp 
 	reti
-	 
+
 EXT_INT1: ;(PB1)
 	 
 	push temp 
@@ -386,7 +380,15 @@ EXT_INT1: ; PB1
 	pop temp 
 	reti
 	
+INTERRUPT2:
+	push temp
 	
+	do_lcd_data 'l'
+	do_lcd_data 'o'
+	do_lcd_data 'l'
+	stop_time_head r1
+	pop temp
+	reti	
 
 Timer0OVF:
 	in temp, SREG
@@ -450,6 +452,7 @@ restart:
 	st y+,row
 	sts current_name_pointer,yl
 	sts current_name_pointer+1,yh
+	ldi row, 95 ; row = "_"
 	do_lcd_data_imme row	
 noAction:
 	sei
@@ -475,46 +478,45 @@ partc_timer:
 		pop temp
 		ret
 	rail_stop:
-	//test
-		lds r24,TempCounter
-		lds r25,TempCounter+1
-		cpi r24,low(2604)
-		ldi temp,high(2604)
-		cpc r25,temp
-		brsh change_led
-		do_motor:
-			ldi temp, 0b00111100
-			out DDRE, temp  ; set PL3 (OC5A) as output. 
-			ldi temp, 0x00   ; this value and the operation mode determine the PWM duty cycle sts OCR5AL, temp 
-			sts OCR3BL,temp
-			clr temp 
-			sts OCR3BH, temp
-			ldi temp, (1 << CS30) 
-			sts TCCR3B, temp	
-			ldi temp, (1<< WGM30)|(1<<COM3B1)  
-			sts TCCR3A, temp
-			rjmp partc_timer_end //havenot done this part let it stop
-		change_led:
-			lds temp2,led
-			cpi temp2,0
-			breq light
-			cpi temp2,1
-			breq dark
-			light:
-				ldi temp2,0b11111111
-				out PORTC,temp2
-				ldi temp2,1
-				sts led,temp2
-				rjmp change_end
-			dark:
-				ldi temp2,0b00000000
-				out PORTC,temp2
-				ldi temp2,0
-				sts led,temp2
-				rjmp change_end
-			change_end:
-				clear TempCounter
-				rjmp do_motor
+	lds r24,TempCounter
+	lds r25,TempCounter+1
+	cpi r24,low(2604)
+	ldi temp,high(2604)
+	cpc r25,temp
+	brsh change_led
+	do_motor:
+		ldi temp, 0b00111100
+		out DDRE, temp  ; set PL3 (OC5A) as output. 
+		ldi temp, 0x00   ; this value and the operation mode determine the PWM duty cycle sts OCR5AL, temp 
+		sts OCR3BL,temp
+		clr temp 
+		sts OCR3BH, temp
+		ldi temp, (1 << CS30) 
+		sts TCCR3B, temp	
+		ldi temp, (1<< WGM30)|(1<<COM3B1)  
+		sts TCCR3A, temp
+		rjmp partc_timer_end 
+	change_led:
+		lds temp2,led
+		cpi temp2,0
+		breq light
+		cpi temp2,1
+		breq dark
+		light:
+			ldi temp2,0b11111111
+			out PORTC,temp2
+			ldi temp2,1
+			sts led,temp2
+			rjmp change_end
+		dark:
+			ldi temp2,0b00000000
+			out PORTC,temp2
+			ldi temp2,0
+			sts led,temp2
+			rjmp change_end
+		change_end:
+			clear TempCounter
+			rjmp do_motor
 main:	
 	///////////////////////////////////
 		; part a
@@ -968,7 +970,6 @@ normal:
 	do_lcd_data_imme row
 	clear TempCounter
 	clear SecondCounter
-	ldi row, 95 ; row = "_"
 ending:
 	ret					 ; return to caller	
 remain:
