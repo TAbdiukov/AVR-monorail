@@ -1,4 +1,8 @@
+//Liam Ho z5114385 and Timur Abdiukov z5214048
+// Monorial Emulator
+
 .include "m2560def.inc"
+//Intialise registers
 .def temp =r21
 .def row =r17
 .def col =r18
@@ -11,21 +15,21 @@
 .def temp_count_for_question =r2
 .def keypad_mode = r3		;char - 0 num - 1
  
-
+ // Initialise masks
 .equ PORTLDIR = 0xF0
 .equ INITCOLMASK = 0xEF
 .equ INITROWMASK = 0x01
 .equ ROWMASK = 0x0F
 .equ second_line = 0b10101000
 
-////
-	;lcd operation
-////
+
+//////////////////////////////
+;++++++   LCD operation   +++++++++
+//////////////////////////////
 .equ LCD_RS = 7
 .equ LCD_E = 6
 .equ LCD_RW = 5
 .equ LCD_BE = 4
-
 
 .equ F_CPU = 16000000
 .equ DELAY_1MS = F_CPU / 4 / 1000 - 4
@@ -41,7 +45,7 @@
 	rcall lcd_command
 	rcall lcd_wait
 .endmacro
-.macro do_lcd_data
+.macro do_lcd_data //for displaying on screen
 	ldi r16, @0
 	rcall lcd_data
 	rcall lcd_wait
@@ -52,7 +56,7 @@
 	rcall lcd_wait
 .endmacro
 
-.macro stop_time_head
+.macro stop_time_head // LCD display of question
 	do_lcd_data 'T'
 	do_lcd_data 'i'
 	do_lcd_data 'm'
@@ -67,7 +71,7 @@
 	do_lcd_data ':'
 	do_lcd_command 0b11000000
 .endmacro
-.macro train_stop
+.macro train_stop  // LCD display of question 4
 	do_lcd_data 'T'
 	do_lcd_data 'r'
 	do_lcd_data 'a'
@@ -87,7 +91,7 @@
 	do_lcd_command 0b11000000
 .endmacro
 //
-.macro station_name
+.macro station_name  // LCD display of question 2
 	do_lcd_data 'T'
 	do_lcd_data 'y'
 	do_lcd_data 'p'
@@ -106,7 +110,7 @@
 	do_lcd_data 'e'
 	do_lcd_data ':'
 .endmacro
-.macro stop_maximum
+.macro stop_maximum // LCD display of question 1
 	do_lcd_data 'M'
 	do_lcd_data 'a'
 	do_lcd_data 'x'
@@ -122,7 +126,7 @@
 	do_lcd_data ':'
 	do_lcd_command 0b11000000
 .endmacro
-.macro stop_time
+.macro stop_time // LCD display of question
 	do_lcd_data 'T'
 	do_lcd_data 'i'
 	do_lcd_data 'm'
@@ -138,7 +142,7 @@
 	do_lcd_data ':'
 	do_lcd_command 0b11000000
 .endmacro
-.macro finish_info
+.macro finish_info  // LCD display of question when all question have been answered.  Wait 5 seconds
 	do_lcd_data 'A'
 	do_lcd_data 'l'
 	do_lcd_data 'l'
@@ -147,7 +151,7 @@
 	do_lcd_data 'o'
 	do_lcd_data 'n'
 	do_lcd_data 'e'
-	do_lcd_command 0b11000000
+	do_lcd_command 0b11000000  // LCD display of question 3
 	do_lcd_data 'W'
 	do_lcd_data 'a'
 	do_lcd_data 'i'
@@ -189,8 +193,9 @@ st Y,temp
 .endmacro
 
 .dseg
+
 //////////////////////////////
-;++++++   variable   +++++++++
+;++++++   Variables   +++++++++
 //////////////////////////////
 SecondCounter: .byte 2
 TempCounter: .byte 2
@@ -206,9 +211,10 @@ pb_flag: .byte 1
 led: .byte 1
 stop_flag: .byte 1
 hash_flag: .byte 1
-////////////////////////////
-	;station storage
-////////////////////////////
+
+//////////////////////////////
+;++++++   Store Stations   +++++
+//////////////////////////////
 	station1: .byte 10
 	station2: .byte 10
 	station3: .byte 10
@@ -251,6 +257,7 @@ out DDRA, temp
 clr temp
 out PORTF, temp
 out PORTA, temp
+
 ;clr station
 ldi yl,low(station1)
 ldi yh,high(station2)
@@ -262,8 +269,10 @@ clear_stations:
 	st y+,r16
 	dec temp
 	rjmp clear_stations
+
 ;clear time
 time_setup:
+
 ;timer0 setup
 	clear TempCounter
 	clear SecondCounter
@@ -273,19 +282,23 @@ time_setup:
 	out TCCR0B,temp	 ;set prescaler - 8
 	ldi temp, 1<<TOIE0  ;time overflow from 3 kinds of overflow cmpA,cmpB,time overflow
 	sts TIMSK0,temp	 ;apply to mask
-
-	
 	 
 	sei					;every timer overflow trigger an interrupt, when the times of interrupt is equal
 						;to 7812(that is the times should happen in a second) add 1s
-	////////////////////////////
-	//set lcd start position////
-	////////////////////////////
+
+
+//////////////////////////////
+;++++++   set lcd start position  +++++++++
+//////////////////////////////
+
 	ldi r24, second_line
 	sts Position, r24
-	////////////////////////////
-	//set letter counter////////
-	////////////////////////////
+
+	//////////////////////////////
+;++++++   set letter counter  +++++++++
+//////////////////////////////
+
+
 	ldi push_flag,1
 	clr letter_num
 	ldi count_letter, 0b00000000
@@ -302,11 +315,9 @@ time_setup:
 	do_lcd_command 0b00000001 ; clear display
 	do_lcd_command 0b00000110 ; increment, no display shift
 	do_lcd_command 0b00001100 ; Cursor OFF, bar, no blink
-	;clr line
-	//
 
 	jmp main
-EXT_INT0: ;(PB0)
+EXT_INT0: ;(PB0) Push button interrupts
 	 
 	push temp 
 	in temp, SREG
@@ -318,7 +329,7 @@ EXT_INT0: ;(PB0)
 	pop temp 
 	reti
 
-EXT_INT1: ;(PB1)
+/*EXT_INT1: ;(PB1)  Push button interrupts
 	 
 	push temp 
 	in temp, SREG
@@ -329,11 +340,9 @@ EXT_INT1: ;(PB1)
 	out SREG, temp 
 	pop temp 
 	reti
+*/
 
-
-/*
-EXT_INT1: ; PB1
-	rcall sleep_350ms
+EXT_INT1: ; PB1  Push button interrupts   HASH KEY IMPLEMENTATION APPLIED FOR BUTTON
 	push temp 
 	in temp, SREG
 	push temp
@@ -368,13 +377,11 @@ EXT_INT1: ; PB1
 			ldi temp, (1<< WGM30)|(1<<COM3B1)   ; WGM30=1: phase correct PWM, 8 bits  
 												; COM3B1=1: make OC3B override the normal port functionality of the I/O pin PL3 
 			sts TCCR3A, temp
-	*/
-
-
-
+	
 	hash_end:
 	cli
 	clearonebyte stop_flag
+
 	pop temp 
 	out SREG, temp 
 	pop temp 
@@ -390,7 +397,7 @@ INTERRUPT2:
 	pop temp
 	reti	
 
-Timer0OVF:
+Timer0OVF:  // TIMER
 	in temp, SREG
 	push temp
 	push YH
@@ -460,7 +467,7 @@ noAction:
 
 	rjmp EndIF
 ///////////////////////////
-//do motor and led here
+//MOTOR AND LED 
 partc_timer:
 	
 	push temp
@@ -503,7 +510,7 @@ partc_timer:
 		cpi temp2,1
 		breq dark
 		light:
-			ldi temp2,0b11111111
+			ldi temp2,0b00000111
 			out PORTC,temp2
 			ldi temp2,1
 			sts led,temp2
@@ -522,6 +529,9 @@ main:
 		; part a
 		;get and store information
 	///////////////////////////////////
+
+
+
 	stop_maximum
 	ldi temp,1		;1 is for num pad
 	mov keypad_mode , temp
@@ -648,12 +658,14 @@ wrong_station_info:
 	
 	clearonebyte TempNumInfo
 	rjmp ask_stop_time
-	 //////////////////////////////////
-		;part c
-		;show stored information
-	///////////////////////////////////// 
 
-//
+
+	//////////////////////////////
+;++++++  	;part c             +++++++++
+		;show stored information 
+//////////////////////////////
+
+
 partc:
 	ldi temp, (2 << ISC10) | (2 << ISC00) ;enable external interrupt
 	sts EICRA, temp 
@@ -922,13 +934,14 @@ question:
 	sei
 	ret
 ////////////////////////////////
-////convert result to character
+////convert result to character     // Keypad numbers to letters
 ///////////////////////////////
 convert_char:
 	;add a debouncing here, at first it's not stable,when we detect a key pushed
 	rcall sleep_350ms
 	
 	;wait until disturbing signal disappear then convert
+	; FIND THE BUTTON ON KEYPAD
 	cpi col, 3										
 	breq letters
 	
@@ -943,23 +956,28 @@ convert_char:
 	add temp,r16
 	inc temp
 	jmp convert_end
+space:
+	ldi temp, 32
+	jmp convert_end
 letters:
 	cpi row, 0
 	breq delete
+	cpi row, 1
+	breq space
 	cpi row, 2
-	breq c_for_finish ;C for confirm
+	breq c_for_finish
 	jmp ending
 
-c_for_finish:
+c_for_finish:  //CONFIRM BUTTON
 	ldi finish_input_flag,1
 	rjmp ending
 convert_end:
-	add temp, count_letter
+	add temp, count_letter //UPDATE LETTER COUNT
 	inc count_letter
 	cpi count_letter,0b00000011
 	breq remain
 final:
-	cpi letter_num, 11
+	cpi letter_num, 11  //MAX IS 10
 	brsh no_num
 	clr push_flag
 	; rjmp normal
@@ -996,11 +1014,8 @@ delete:
 	rcall sleep_350ms 
 	rjmp ending
 	
-	
 no_num:	
 	rjmp ending ;normal
-
-
 
 convert_num:
 	cli
@@ -1034,33 +1049,39 @@ update_tempnum:
 	add temp,r16
 	clr push_flag
 	jmp convert_num_end
+
 num_letter:
 	cpi row, 1
 	breq zero_num
 	cpi row, 2
 	breq c_for_finish_num
 	jmp ending
+
 c_for_finish_num:
 	ldi finish_input_flag,1
 	rjmp num_end
+
 zero_num:
 	ldi temp, 0b00110000
 	lds temp2,TempNumInfo
 	timeten temp2
 	sts TempNumInfo, temp2
+
 convert_num_end:
 	do_lcd_data_imme temp
+
 num_end:
 	ret ; return to caller
+
 time10:
 	lds temp2,TempNumInfo
 	timeten temp2
 	sts TempNumInfo, temp2
 	rjmp update_tempnum
 
-///
-	;store operation
-///
+////////////////////////
+	;STORE operation
+////////////////////////
 
 store_name:
 	cli
@@ -1283,3 +1304,4 @@ sleep_350ms:
 		cpi r16, 70
 		brne d_loop350ms
 	ret
+	
