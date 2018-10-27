@@ -14,9 +14,11 @@ for COMP2121
 
 - ~~B as Space~~
 
-- pressing too fast
+- ~~pressing too fast~~  *(made into a feature, check **input_wait** )*
 
 - ~~display zero properly~~
+
+- ~~Second character problem after 1 second~~ *(made into a feature, check timer subroutines)*
 
 ## Due time
 DEMO
@@ -24,3 +26,5 @@ Oct 26 FRI
 12:00-12:20 PM
 
 SUBMISSION Midnight 28/10/2018 
+
+PUBLICATION 06/12/2018 (onwards)

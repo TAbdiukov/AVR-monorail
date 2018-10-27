@@ -3,17 +3,17 @@
 
 .include "m2560def.inc"
 //Intialise registers
-.def temp =r21
-.def row =r17
-.def col =r18
-.def mask =r19
-.def temp2 =r20
-.def count_letter =r22		  ;multiple times 
-.def push_flag=r23				;whether any button has pushed
-.def letter_num = r24			;maximum number
-.def finish_input_flag =r25		;0 is pushed, input finish
-.def temp_count_for_question =r2
-.def keypad_mode = r3		;char - 0 num - 1
+.def temp =r21 ; temporary registers
+.def row =r17 ; row on LCD
+.def column =r18 ; column on LCD
+.def mask =r19 ; the mask we set
+.def temp2 =r20 ; second temporary registers
+.def letter_counter =r22		  ;counts letters printed, multiple times 
+.def flag_push=r23				;flag on whether any button has pushed
+.def letter_amount = r24			;maximum number 
+.def flag_input_terminated =r25		;0 is pushed, input finish
+.def tempCountQs =r2 ; temporary variable we use all the way in the code
+.def keypad_mode = r3		;mode of keypad input. char - 2, num - 1
  
  // Initialise masks
 .equ PORTLDIR = 0xF0
@@ -35,12 +35,12 @@
 .equ DELAY_1MS = F_CPU / 4 / 1000 - 4
 ; 4 cycles per iteration - setup/call-return overhead
 
-.macro do_lcd_command
+.macro do_lcd_command ; drivers for lcd
 	ldi r16, @0
 	rcall lcd_command
 	rcall lcd_wait
 .endmacro
-.macro do_lcd_command_imme
+.macro do_lcd_command_imme ; load data to lcd immediately (similarly to ldi)
 	mov r16, @0
 	rcall lcd_command
 	rcall lcd_wait
@@ -50,7 +50,7 @@
 	rcall lcd_data
 	rcall lcd_wait
 .endmacro
-.macro do_lcd_data_imme
+.macro do_lcd_data_imme ; do lcd data immediately
 	mov r16, @0
 	rcall lcd_data
 	rcall lcd_wait
@@ -164,27 +164,27 @@
 	do_lcd_data '5'
 	do_lcd_data 's'
 .endmacro
-.macro wrong
+.macro wrong ; print error
 	do_lcd_data 'E'
 	do_lcd_data 'r'
 	do_lcd_data 'r'
 	do_lcd_data '!'
 	do_lcd_data ' '
 .endmacro
-.macro clear
+.macro clear ; clear stack
 ldi YL, low(@0)
 ldi YH, high(@0)
 clr temp
 st Y+,temp
 st Y,temp
 .endmacro
-.macro clearonebyte
+.macro clearonebyte ; remove byte from the stack
 ldi YL, low(@0)
 ldi YH, high(@0)
 clr temp
 st Y,temp
 .endmacro
-.macro timeten
+.macro timeten ; multiply r16 by 10
 	lsl @0
 	mov r16, @0
 	lsl @0
@@ -197,20 +197,20 @@ st Y,temp
 //////////////////////////////
 ;++++++   Variables   +++++++++
 //////////////////////////////
-SecondCounter: .byte 2
-TempCounter: .byte 2
-Status: .byte 1
-Position: .byte 1
-count_question:.byte 1
-Maximum: .byte 1
-TempNumInfo: .byte 1
-current_name_pointer: .byte 2
-station_stop_time: .byte 1
-current_time_pointer: .byte 2
-pb_flag: .byte 1
-led: .byte 1
-stop_flag: .byte 1
-hash_flag: .byte 1
+SecondCounter: .byte 2 ; Stores temporary integer data used within timers and delays
+TempCounter: .byte 2 ; Stores temporary integer data used within timers and delays
+Position: .byte 1 ; Stores the current position of the cursor
+Status: .byte 1 ; Stores the current status of timers and delays for easy access
+count_question:.byte 1 ; Stores the current station number
+Maximum: .byte 1 ; Stores the number of stations configured within the program
+TempNumInfo: .byte 1 ; Stores the number of the corresponding current station
+current_name_pointer: .byte 2 ; Stores the address of the current station’s name
+station_stop_time: .byte 1 ; Stores the current station’s stopping time. Is present for the future scalability (i.e. if in the future different stations are to have different stopping times)
+current_time_pointer: .byte 2 ; Stores the address of the current elapsed time travelling from one station to another.
+pb_flag: .byte 1 ; Flag to store and check if any of the PB buttons were pressed
+led: .byte 1 ; Flag to store and check if the LEDs are turned on or off
+stop_flag: .byte 1 ; Flag to store and check if the monorail needs to stop
+hash_flag: .byte 1 ; Flag to store and check if Hash (#) key was pressed
 
 //////////////////////////////
 ;++++++   Store Stations   +++++
@@ -229,7 +229,7 @@ hash_flag: .byte 1
 time_data: .byte 10
 
 .cseg
-.org 0x0
+.org 0x0 ; interrupts
 	jmp RESET
 	jmp EXT_INT0						; IRQ0 Handler
 	jmp EXT_INT1						; IRQ1 Handler
@@ -240,11 +240,14 @@ time_data: .byte 10
 
 DEFAULT:reti
 
-RESET:
+RESET: ; reset everything
+
+; resetting stack
 ldi temp, low(RAMEND)
 out SPL, temp
 ldi temp, high(RAMEND)
 out SPH, temp
+
 ldi temp, PORTLDIR ; columns are outputs, rows are inputs
 STS DDRL, temp	 ; cannot use out
 ser temp
@@ -252,13 +255,14 @@ out DDRC, temp ; Make PORTC all outputs
 clr temp
 out PORTC, temp
 ser temp 
-out DDRF, temp
-out DDRA, temp
+out DDRF, temp ; make DDRF all outputs
+out DDRA, temp ; make DDRA all outputs
 clr temp
-out PORTF, temp
-out PORTA, temp
+out PORTF, temp ; make PORTF non outputable
+out PORTA, temp ; ; make PORTF non outputable
 
 ;clr station
+; initialise stack
 ldi yl,low(station1)
 ldi yh,high(station2)
 ldi temp,99
@@ -299,9 +303,9 @@ time_setup:
 //////////////////////////////
 
 
-	ldi push_flag,1
-	clr letter_num
-	ldi count_letter, 0b00000000
+	ldi flag_push,1
+	clr letter_amount
+	ldi letter_counter, 0b00000000
 	clearonebyte count_question
 	
 
@@ -318,76 +322,78 @@ time_setup:
 
 	jmp main
 EXT_INT0: ;(PB0) Push button interrupts
-	 
 	push temp 
-	in temp, SREG
+	in temp, SREG ; enter registers to SREG
 	push temp 
 	ldi temp,1
-	sts pb_flag,temp
+	sts pb_flag,temp ; set flag to 1
 	pop temp 
-	out SREG, temp 
+	out SREG, temp ; retrieve data from SREG back
 	pop temp 
 	reti
 
 /*EXT_INT1: ;(PB1)  Push button interrupts
 	 
 	push temp 
-	in temp, SREG
+	in temp, SREG ; enter registers to SREG
 	push temp 
 	ldi temp,1
-	sts pb_flag,temp
+	sts pb_flag,temp ; set flag to 1
 	pop temp 
-	out SREG, temp 
+	out SREG, temp ; retrieve data from SREG back
 	pop temp 
 	reti
 */
 
 EXT_INT1: ; PB1  Push button interrupts   HASH KEY IMPLEMENTATION APPLIED FOR BUTTON
-	push temp 
+	push temp ;
 	in temp, SREG
 	push temp
- 
+	
+	; check if motor needs to be open or closed
 	lds temp,hash_flag
 	cpi temp,1
 	breq close_motor
 	cpi temp,0
 	breq open_motor
-		close_motor:
-		ldi temp,1
-		sts stop_flag,temp
-		ldi temp,0
-		sts hash_flag,temp
-		sei
-		close_motor_loop:
-			lds temp2,hash_flag
-			cpi temp2,1
-			breq hash_end
-			rjmp close_motor_loop
-		open_motor:
-			ldi temp2,1
-			sts hash_flag,temp2
-			ldi temp, 0b00111100
-			out DDRE, temp   
-			ldi temp, 0xff   
-			sts OCR3BL,temp
-			clr temp 
-			sts OCR3BH, temp
-			ldi temp, (1 << CS30)			   ; CS31=1: no prescaling 
-			sts TCCR3B, temp	
-			ldi temp, (1<< WGM30)|(1<<COM3B1)   ; WGM30=1: phase correct PWM, 8 bits  
-												; COM3B1=1: make OC3B override the normal port functionality of the I/O pin PL3 
-			sts TCCR3A, temp
 	
-	hash_end:
+	close_motor:
+	ldi temp,1
+	sts stop_flag,temp ; indicate the stop
+	ldi temp,0
+	sts hash_flag,temp ; set hash flag to 0
+	sei
+	close_motor_loop: ; loop until motor stopped
+		lds temp2,hash_flag
+		cpi temp2,1
+		breq hash_end
+		rjmp close_motor_loop
+	open_motor:
+		ldi temp2,1
+		sts hash_flag,temp2 ; set hash flag to 1
+		; ; output bytecode structures to DDRE, OCR3BL and OCR3BH respectively
+		ldi temp, 0b00111100
+		out DDRE, temp
+		ldi temp, 0xff   
+		sts OCR3BL,temp
+		clr temp 
+		sts OCR3BH, temp
+		ldi temp, (1 << CS30)			   ; CS31=1: no prescaling 
+		sts TCCR3B, temp	
+		ldi temp, (1<< WGM30)|(1<<COM3B1)   ; WGM30=1: phase correct PWM, 8 bits  
+											; COM3B1=1: make OC3B override the normal port functionality of the I/O pin PL3 
+		sts TCCR3A, temp
+		hash_end:
 	cli
 	clearonebyte stop_flag
 
+	; retrieve data back from SREG
 	pop temp 
 	out SREG, temp 
 	pop temp 
 	reti
 	
-INTERRUPT2:
+INTERRUPT2: // UNUSED
 	push temp
 	
 	do_lcd_data 'l'
@@ -397,13 +403,18 @@ INTERRUPT2:
 	pop temp
 	reti	
 
-Timer0OVF:  // TIMER
+Timer0OVF:  // the main timer
 	in temp, SREG
+	
+	//push variables to the stack here//
 	push temp
 	push YH
 	push YL
 	push r25
 	push r24
+	//	//
+	
+	; enter data for the delay and speeds
 	lds r24,TempCounter
 	lds r25,TempCounter+1
 	adiw r25:r24,1
@@ -422,38 +433,42 @@ Timer0OVF:  // TIMER
 	cpi r24,0
 	breq input_wait
 	rcall partc_timer
+	; finish up
 	rjmp EndIF
-NotSecond:
+NotSecond: ; if not travelling yet
 	sts TempCounter, r24
 	sts TempCounter+1,r25
-	lds r24, Status ;?
+	lds r24, Status ;
 	cpi r24,0
+	; finish up
 	breq EndIF
 	rcall partc_timer
 	EndIF:
+	; pop data back from stack
 	pop r24
 	pop r25
 	pop YL
 	pop YH
 	pop temp
+	; retrieve data back from SREG
 	out SREG,temp
 	reti
-input_wait:
+input_wait: ;delay for the input 
 	lds r24,SecondCounter
 	cpi r24, 1
 	brsh restart
 	rjmp noAction
-restart:
+restart: restart everythingh
 	cli
 	clear TempCounter
 	clear SecondCounter
-	sbrc push_flag,0				;if 0, then there is a char pressed 
+	sbrc flag_push,0				;if 0, then there is a char pressed 
 	rjmp noAction
 	lds r24,Position
 	inc r24
 	sts Position,r24
-	ldi push_flag,1
-	inc letter_num					
+	ldi flag_push,1
+	inc letter_amount					
 	lds yl,current_name_pointer
 	lds yh,current_name_pointer+1
 	st y+,row
@@ -463,34 +478,37 @@ restart:
 	do_lcd_data_imme row	
 noAction:
 	sei
-	ldi count_letter,0b00000000
+	ldi letter_counter,0b00000000
 
 	rjmp EndIF
 ///////////////////////////
 //MOTOR AND LED 
-partc_timer:
+partc_timer: ; constant handling of motor and led conditionally done by timer 0
 	
 	push temp
 	push temp2
 	push r24
 	push r25
 	//dont use r17
+	// since its allocated to the var already!!!
 	lds temp,stop_flag
 	cpi temp,1
 	breq rail_stop
-	partc_timer_end:
+	partc_timer_end: ; to free data from stack
 		pop r25
 		pop r24
 		pop temp2
 		pop temp
 		ret
 	rail_stop:
+	
+	; setting up variables for timer purposes
 	lds r24,TempCounter
 	lds r25,TempCounter+1
-	cpi r24,low(2604)
+	cpi r24,low(2604) 
 	ldi temp,high(2604)
 	cpc r25,temp
-	brsh change_led
+	brsh change_led ; change the led state
 	do_motor:
 		ldi temp, 0b00111100
 		out DDRE, temp  ; set PL3 (OC5A) as output. 
@@ -503,7 +521,7 @@ partc_timer:
 		ldi temp, (1<< WGM30)|(1<<COM3B1)  
 		sts TCCR3A, temp
 		rjmp partc_timer_end 
-	change_led:
+	change_led: ; change the led state, used for blinking at 3 Hz
 		lds temp2,led
 		cpi temp2,0
 		breq light
@@ -533,7 +551,7 @@ main:
 
 
 	stop_maximum
-	ldi temp,1		;1 is for num pad
+	ldi temp,1		;1 is for numpad
 	mov keypad_mode , temp
 	rcall keypad_part
 	lds temp, TempNumInfo
@@ -541,13 +559,13 @@ main:
 	brsh wrong_info_max
 	sts Maximum,temp
 	rjmp ask_stop_name
-wrong_info_max:
+wrong_info_max: ; error handling
 	do_lcd_command 0b00000001
 	wrong						
 	clearonebyte TempNumInfo
 	rjmp main
 
-ask_stop_name:
+ask_stop_name: ; asks for the stop/station name
 	do_lcd_command 0b00000001 ; clear display
 	clr keypad_mode
 	lds temp, count_question ;start from 0
@@ -555,7 +573,7 @@ ask_stop_name:
 	cp temp, r16
 	brsh stop_time_start
 	ldi r16, 0b00110000
-	mov temp_count_for_question, temp	
+	mov tempCountQs, temp	
 	add r16, temp
 	mov r1, r16
 	inc r1
@@ -563,17 +581,17 @@ ask_stop_name:
 	station_name r1
 	rcall keypad_part
 
-	mov r1, temp_count_for_question
+	mov r1, tempCountQs
 	inc r1
 	sts count_question, r1
 	rjmp ask_stop_name
 
-stop_time_start:
+stop_time_start: ; subroutine of ask_stop_name
 	clearonebyte count_question
 	clearonebyte tempNumInfo
-ask_stop_time:
+ask_stop_time: ; subroutine of ask_stop_name
 	lds r1, count_question
-	mov temp_count_for_question, r1
+	mov tempCountQs, r1
 	lds r16, Maximum
 	dec r16
 	cp r1, r16
@@ -586,7 +604,7 @@ ask_stop_time:
 	mov keypad_mode , temp
 	rcall keypad_part
 	rjmp back_to_time   ;check overflow for station time
-back_to_head:										
+back_to_head:	; subroutine of ask_stop_name									
 	lds r1, count_question
 	mov r16, r1
 	cpi r16, 1
@@ -599,7 +617,8 @@ back_to_head:
 	//
 	rjmp time_head
 	
-ask_for_waiting_time:								;new block
+;new block
+ask_for_waiting_time: ; asks user for the waiting time at the station							
 	train_stop
 	rcall keypad_part
 	lds temp, TempNumInfo
@@ -609,19 +628,19 @@ ask_for_waiting_time:								;new block
 	brlo wrong_stop
 	sts station_stop_time,temp
 	rjmp finish
-wrong_stop:
+wrong_stop: ; error handling
 	do_lcd_command 0b00000001
 	wrong						
 	do_lcd_command 0b11000000
 	clearonebyte TempNumInfo
 	rjmp ask_for_waiting_time
 	//wrong handler
-finish:
+finish: ; subroutine of ask_for_waiting_time
 	do_lcd_command 0b00000001
 	finish_info
 	rcall sleep_350ms
 	rjmp partc
-back_to_time:
+back_to_time: ; subroutine of ask_for_waiting_time
 	lds temp, TempNumInfo
 	cpi temp, 11
 	brsh wrong_station_info
@@ -630,13 +649,13 @@ back_to_time:
 	lds xl,current_time_pointer
 	lds xh,current_time_pointer+1
 	st x+,temp
-	inc temp_count_for_question
-	mov r1, temp_count_for_question
+	inc tempCountQs
+	mov r1, tempCountQs
 	sts count_question,r1
 	clearonebyte tempNumInfo
 	do_lcd_command 0b00000001
 	rjmp ask_stop_time
-time_head:
+time_head: ; subroutine of ask_for_waiting_time
 	lds temp, TempNumInfo
 	cpi temp, 11
 	brsh wrong_station_info
@@ -645,14 +664,14 @@ time_head:
 	lds xl,current_time_pointer
 	lds xh,current_time_pointer+1
 	st x+,temp
-	inc temp_count_for_question
-	mov r1, temp_count_for_question
+	inc tempCountQs
+	mov r1, tempCountQs
 	sts count_question,r1
 	clearonebyte tempNumInfo
 	//
 	do_lcd_command 0b00000001
 	rjmp ask_for_waiting_time
-wrong_station_info:
+wrong_station_info: ; error handling
 	do_lcd_command 0b00000001
 	wrong						
 	
@@ -666,13 +685,16 @@ wrong_station_info:
 //////////////////////////////
 
 
-partc:
+partc: ; optional subsection aactivated by timer when the monorail travels
+	; initialise variables
 	ldi temp, (2 << ISC10) | (2 << ISC00) ;enable external interrupt
 	sts EICRA, temp 
 	in temp, EIMSK 
 	ori temp, (1<<INT0) | (1<<INT1) 
 	out EIMSK, temp
 	sei
+	
+	; prepare to depart. Wait for 5s
 	ldi temp, 0b00111100
 	out DDRE, temp   
 	ldi temp, 0x00   
@@ -689,19 +711,22 @@ partc:
 	rcall sleep_1000ms
 	rcall sleep_1000ms
 	rcall sleep_1000ms
-	do_lcd_command 0b00000001
+	
+	; main routine
+	do_lcd_command 0b00000001 ; clear screen
 	clearonebyte count_question
 	ldi temp, 1
 	sts Status, temp
 	ldi temp,2
-	mov keypad_mode, temp
+	mov keypad_mode, temp 
 	ldi temp, 1
 	sts hash_flag, temp
 	clr temp
 	sts pb_flag,temp
 	clearonebyte led
 	clearonebyte stop_flag
-	print_data:
+	print_data: ; print next station name and >'s
+		; initialise variables
 		ldi temp, 0b00111100
 		out DDRE, temp  
 		ldi temp, 0xff	
@@ -722,7 +747,7 @@ partc:
 		cpi r18,0
 		breq time_back_to_1
 		rjmp print_go_on
-
+		; conditional subroutines
 		time_back_to_1:
 			ldi yl,low(time_data)
 			ldi yh,high(time_data)
@@ -733,6 +758,7 @@ partc:
 			lds yh,current_time_pointer+1
 			ld r18,y
 		//	
+		; print out next and >'s
 		do_lcd_command 0b00000001
 		do_lcd_data 'n'
 		do_lcd_data 'e'
@@ -742,23 +768,25 @@ partc:
 		do_lcd_command 0b11000000
 		rcall sleep_5ms
 		rcall print_all
-		on_way_loop:			
+		on_way_loop:	; print >'s if necessary		
 			cpi r18,0
 			breq check_stop
 			do_lcd_data '>'
 			rcall sleep_1000ms
 			dec r18	
 			rjmp on_way_loop
-		check_stop:
+		check_stop: ; check if any passenger asked to hop on or off
 			
 			lds temp,pb_flag
 			cpi temp,1	
 			breq Station_stop
 			rjmp print_data_end
-		Station_stop:
+		Station_stop: ; subroutine to stop the monorail
+			; init variables
 			ldi r17,1
 			sts stop_flag,r17
 			clear TempCounter
+			; print text informing the user
 			do_lcd_command 0b00000001
 			do_lcd_data 'w'
 			do_lcd_data 'a'
@@ -771,14 +799,17 @@ partc:
 			do_lcd_data ':'
 			do_lcd_data ' '
 			do_lcd_command 0b11000000
+			; timer part
 			lds r17,count_question
 			dec r17
+			; set data to the reg.
 			sts count_question,r17
 			rcall print_all
 			inc r17
 			sts count_question,r17
 			lds r17,station_stop_time
 			;out PORTC,r17
+			; print >'s if necessary
 			Station_stop_loop:
 				do_lcd_data '>'
 				rcall sleep_1000ms
@@ -786,26 +817,27 @@ partc:
 				breq print_data_end
 				dec r17
 				rjmp Station_stop_loop
-		print_data_end:
+		print_data_end: ; alter variables to reperform the operations above
 			clearonebyte stop_flag
 			clearonebyte pb_flag
 			ldi temp2,0b00000000
 			out PORTC,temp2
 			rjmp print_data
-
-
-print_all:
+			
+print_all: ; custom function that handles everything in part. part c
 	//cli
+	// push data to stack
 	push temp
 	push temp2
 	push r16
 	push yl
 	push yh
+	; setting the stack 
 	ldi yl,low(station1)
 	ldi yh,high(station1)
 	sts current_name_pointer, yl
 	sts current_name_pointer+1,yh
-	show_station:
+	show_station: ; 
 		lds temp2,Maximum
 		lds temp,count_question
 		sub temp2,temp
@@ -876,7 +908,7 @@ loop:
 
 keypad_part:
 	ldi mask, INITCOLMASK ; initial column mask
-	clr col				  ; initial column
+	clr column				  ; initial column
 colloop:
 	STS PORTL, mask	   ; set column to mask value
 						  ; (sets column 0 off)
@@ -902,7 +934,7 @@ rowloop:
 		breq call_recursive
 	rcall convert_char
 back:
-	cpi finish_input_flag, 1
+	cpi flag_input_terminated, 1
 	breq question
 	jmp keypad_part		; and start again
 skipconv:
@@ -910,14 +942,14 @@ skipconv:
 	lsl mask			   ; shift the mask to the next bit
 	jmp rowloop		  
 nextcol:	 
-	cpi col, 3			 ; check if we^re on the last column
+	cpi column, 3			 ; check if we^re on the last column
 	breq keypad_part	   ; if so, no buttons were pushed,
 						   ; so start again.
 
 	sec					; else shift the column mask:
 						   ; We must set the carry bit
 	rol mask			   ; and then rotate left by a bit,
-	inc col				; increment column value
+	inc column				; increment column value
 	jmp colloop			; and check the next column
 call_num:
 	rcall convert_num
@@ -927,10 +959,10 @@ call_recursive:
 question:
 	ldi r16, second_line			;restart all things for keypad
 	sts Position, r16
-	ldi push_flag,1
-	clr letter_num
-	clr finish_input_flag
-	clr count_letter
+	ldi flag_push,1
+	clr letter_amount
+	clr flag_input_terminated
+	clr letter_counter
 	sei
 	ret
 ////////////////////////////////
@@ -942,13 +974,13 @@ convert_char:
 	
 	;wait until disturbing signal disappear then convert
 	; FIND THE BUTTON ON KEYPAD
-	cpi col, 3										
+	cpi column, 3										
 	breq letters
 	
 	mov temp, row 
 	lsl temp 
 	add temp, row
-	add temp, col 
+	add temp, column 
 	mov r16, temp
 	lsl temp
 	add temp, r16
@@ -956,42 +988,44 @@ convert_char:
 	add temp,r16
 	inc temp
 	jmp convert_end
-space:
+space: ; to print out space
 	ldi temp, 32
 	jmp convert_end
-letters:
-	cpi row, 0
+letters: ; routines for the buttons labeled A, B, C and D
+	cpi row, 0 // If A
 	breq delete
-	cpi row, 1
+	cpi row, 1 // If B
 	breq space
-	cpi row, 2
+	cpi row, 2 // If C
 	breq c_for_finish
+	cpi row, 3 // If D
+	// DO NOTHING
 	jmp ending
 
 c_for_finish:  //CONFIRM BUTTON
-	ldi finish_input_flag,1
+	ldi flag_input_terminated,1
 	rjmp ending
-convert_end:
-	add temp, count_letter //UPDATE LETTER COUNT
-	inc count_letter
-	cpi count_letter,0b00000011
+convert_end: // finish CONVERTION
+	add temp, letter_counter //UPDATE LETTER COUNT
+	inc letter_counter
+	cpi letter_counter,0b00000011
 	breq remain
 final:
-	cpi letter_num, 11  //MAX IS 10
+	cpi letter_amount, 11  //MAX IS 10
 	brsh no_num
-	clr push_flag
+	clr flag_push
 	; rjmp normal
-normal:
+normal: ;clear timer and other variables, subroutine
 	mov row,temp			 ;row is useless now ,so treat it as another temp
 	lds r16, Position
 	do_lcd_command_imme r16
 	do_lcd_data_imme row
 	clear TempCounter
 	clear SecondCounter
-ending:
+ending: ; same as DEFAULT
 	ret					 ; return to caller	
 remain:
-	ldi count_letter,0b00000000
+	ldi letter_counter,0b00000000
 	rjmp final
 delete:
 	; move cursor to the correct pos
@@ -1004,9 +1038,10 @@ delete:
 	
 	cursor_decremented:
 	
-	cpi count_letter, 0b00000000
+	; print space over the last letter
+	cpi letter_counter, 0b00000000
 	breq letters_decremented
-		dec count_letter
+		dec letter_counter
 		do_lcd_data ' '
 		
 	letters_decremented:
@@ -1014,66 +1049,67 @@ delete:
 	rcall sleep_350ms 
 	rjmp ending
 	
-no_num:	
+no_num:	; error handling
 	rjmp ending ;normal
 
-convert_num:
+convert_num: ; prompt user to enter the number
 	cli
 	rcall sleep_350ms 
 								;add a debouncing here, at first it's not stable,when we detect a key pushed
-	cpi col, 3 					;wait until disturbing signal disappear then convert					
+	cpi column, 3 					;wait until disturbing signal disappear then convert					
 	breq num_letter
 	
-	; If zero
+	; If zero button was pressed
 	isZeroPressedChk:
-		cpi col, 1
+		cpi column, 1
 		brne isZeroPressedChkFin
 		cpi row, 3
 		breq zero_num
 		
 	isZeroPressedChkFin:
 	
+	; work out convertion
 	mov temp, row 
 	lsl temp 
 	add temp, row 
-	add temp, col 
+	add temp, column 
 	inc temp
 					
-	cpi push_flag,0
+	cpi flag_push,0
 	breq time10
-update_tempnum:
+update_tempnum: ; update the temporary number
 	lds temp2,TempNumInfo
 	add temp2, temp									;push = 0, has pressed
 	sts TempNumInfo, temp2
-	ldi r16,48
+	ldi r16,48 ; add 48 for ASCIOI
 	add temp,r16
-	clr push_flag
+	clr flag_push
 	jmp convert_num_end
 
-num_letter:
+num_letter: ;subroutine of num prompt
 	cpi row, 1
 	breq zero_num
 	cpi row, 2
 	breq c_for_finish_num
 	jmp ending
 
-c_for_finish_num:
-	ldi finish_input_flag,1
+c_for_finish_num: ;subroutine of num prompt
+	ldi flag_input_terminated,1
 	rjmp num_end
 
-zero_num:
+zero_num: ;;subroutine of num prompt, if zero entered
 	ldi temp, 0b00110000
 	lds temp2,TempNumInfo
 	timeten temp2
 	sts TempNumInfo, temp2
 
-convert_num_end:
+convert_num_end: ; finishing convertion
 	do_lcd_data_imme temp
 
 num_end:
 	ret ; return to caller
 
-time10:
+time10: ; times the number by 10
 	lds temp2,TempNumInfo
 	timeten temp2
 	sts TempNumInfo, temp2
@@ -1083,74 +1119,79 @@ time10:
 	;STORE operation
 ////////////////////////
 
-store_name:
+store_name: ; stores the names of corresponding stations
+	// push data to the stack
 	cli
 	push temp
 	push temp2
 	lds temp,count_question
 	ldi temp2,10
 	//move y to current station
-	point_station:
-		load1:
+	point_station: 
+		; the maximum number of stations is 10,
+		; according to specs,
+		; so
+		load1: ; if station 1
 			cpi temp,0
 			brne load2
 			ldi yl,low(station1)
 			ldi yh,high(station1)
 			rjmp clear_10
-		load2:
+		load2: ; if station 2
 			cpi temp,1
 			brne load3
 			ldi yl,low(station2)
 			ldi yh,high(station2)
 			rjmp clear_10
-		load3:
+		load3: ; if station 3
 			cpi temp,2
 			brne load4
 			ldi yl,low(station3)
 			ldi yh,high(station3)
 			rjmp clear_10
-		load4:
+		load4: ; if station 4
 			cpi temp,3
 			brne load5
 			ldi yl,low(station4)
 			ldi yh,high(station4)
 			rjmp clear_10
-		load5:
+		load5: ; if station 5
 			cpi temp,4
 			brne load6
 			ldi yl,low(station5)
 			ldi yh,high(station5)
 			rjmp clear_10
-		load6:
+		load6: ; if station 6
 			cpi temp,5
 			brne load7
 			ldi yl,low(station6)
 			ldi yh,high(station6)
 			rjmp clear_10
-		load7:
+		load7: ; if station 7
 			cpi temp,6
 			brne load8
 			ldi yl,low(station7)
 			ldi yh,high(station7)
 			rjmp clear_10
-		load8:
+		load8: ; if station 8
 			cpi temp,7
 			brne load9
 			ldi yl,low(station8)
 			ldi yh,high(station8)
 			rjmp clear_10
-		load9:
+		load9: ; if station 9
 			cpi temp,8
 			brne load10
 			ldi yl,low(station9)
 			ldi yh,high(station9)
 			rjmp clear_10
-		load10:
+		load10: ; if station 10
 			ldi yl,low(station10)
 			ldi yh,high(station10)
 			rjmp clear_10
 		
 	//clear 10 byte
+	; clears the names of 10 stations
 	clear_10:
 		sts current_name_pointer, yl
 		sts current_name_pointer+1,yh
@@ -1176,21 +1217,23 @@ store_name:
 		sei
 		ret
 //storetime
-store_time:
+store_time: ; stopres the times (delays) we set up before travelling
 	cli
+	; upload data to stack
 	push temp
 	push yl
 	push yh
+	; load data to temp variables
 	lds temp,count_question
 	ldi yl,low(time_data)
 	ldi yh,high(time_data)
-	store_time_loop:		
+	store_time_loop: ; loop/delay for time storage
 		cpi temp,0
 		breq store_time_end
 		ld r7,y+
 		dec temp	
 		rjmp store_time_loop
-	store_time_end:
+	store_time_end: ; end the routine, clear and free variables
 		sts current_time_pointer,yl
 		sts current_time_pointer+1,yh
 		pop yh
@@ -1199,10 +1242,10 @@ store_time:
 		sei
 		ret
 
-.macro lcd_set
+.macro lcd_set ; macro lcd drivers
 	sbi PORTA, @0
 .endmacro
-.macro lcd_clr
+.macro lcd_clr ; macro lcd drivers
 	cbi PORTA, @0
 .endmacro
 
@@ -1210,7 +1253,7 @@ store_time:
 ; Send a command to the LCD (r16)
 ;
 
-lcd_command:
+lcd_command: ; lcd drivers
 	out PORTF, r16
 	nop
 	lcd_set LCD_E
@@ -1223,7 +1266,7 @@ lcd_command:
 	nop
 	ret
 
-lcd_data:
+lcd_data: ; lcd drivers
 	out PORTF, r16
 	lcd_set LCD_RS
 	nop
@@ -1240,13 +1283,13 @@ lcd_data:
 	lcd_clr LCD_RS
 	ret
 
-lcd_wait:
+lcd_wait: ; lcd drivers
 	push r16
 	clr r16
 	out DDRF, r16
 	out PORTF, r16
 	lcd_set LCD_RW
-lcd_wait_loop:
+lcd_wait_loop: ; lcd drivers
 	nop
 	lcd_set LCD_E
 	nop
@@ -1262,25 +1305,25 @@ lcd_wait_loop:
 	pop r16
 	ret
 
-sleep_1ms:
+sleep_1ms: ; sleep for 1 ms
 	push r24
 	push r25
 	ldi r25, high(DELAY_1MS)
 	ldi r24, low(DELAY_1MS)
-delayloop_1ms:
+delayloop_1ms: ; delayloop, aka payload for the function above
 	sbiw r25:r24, 1
 	brne delayloop_1ms
 	pop r25
 	pop r24
 	ret
-sleep_5ms:
+sleep_5ms: ; sleep for 5 ms, using sleep for 1 ms
 	rcall sleep_1ms
 	rcall sleep_1ms
 	rcall sleep_1ms
 	rcall sleep_1ms
 	rcall sleep_1ms
 	ret
-sleep_1000ms:
+sleep_1000ms: ; sleeps 1 second, using sleep for 5 ms performed 200 times
 	clr r16
 	d_loop1000ms:
 		inc r16
@@ -1288,7 +1331,7 @@ sleep_1000ms:
 		cpi r16, 200
 		brne d_loop1000ms
 	ret
-sleep_100ms:
+sleep_100ms: ; sleeps 100 ms, using sleep for 5 ms performed 20 times
 	clr r16
 	d_loop100ms:
 		inc r16
@@ -1296,7 +1339,7 @@ sleep_100ms:
 		cpi r16, 20
 		brne d_loop100ms
 	ret
-sleep_350ms:
+sleep_350ms: ; sleeps 350 ms, using sleep for 5 ms performed 70 times
 	clr r16
 	d_loop350ms:
 		inc r16
