@@ -1,12 +1,17 @@
 # AVR-monorail
-for COMP2121
+
+![pcweltnet.de.jpg](./misc/pcweltnet.de.jpg)
+*Microprocessors and Interfacing*
+
+
+Major Project - Microprocessors and Interfacing (UNSW).
 
 ## Credits
 * Liam Ho z5114385
-* Timur Abdiukov z5214048
+* Timur (Tim) Abdiukov z5214048
 
 ## Todo
-(thanks [markdown editor](https://jbt.github.io/markdown-editor/) )
+(thanks [Markdown editor](https://jbt.github.io/markdown-editor/) )
 
 - ~~subroutine to check if the go back space overflows (if it is more than 0, it will decrement)~~
 
