@@ -7,8 +7,13 @@
 Major Project - Microprocessors and Interfacing (UNSW).
 
 ## Credits
-* Liam Ho z5114385
-* Timur (Tim) Abdiukov z5214048
+* Liam Ho – z5114385
+* Timur (Tim) Abdiukov – z5214048
+
+## Flowchart
+
+![Flowchart](./misc/Diagram.png)
+
 
 ## Todo
 (thanks [Markdown editor](https://jbt.github.io/markdown-editor/) )
