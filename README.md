@@ -16,7 +16,7 @@ Major Project - Microprocessors and Interfacing (UNSW).
 
 
 ## Todo
-(thanks [Markdown editor](https://jbt.github.io/markdown-editor/) )
+(thanks [Markdown editor](https://jbt.github.io/markdown-editor/))
 
 - ~~subroutine to check if the go back space overflows (if it is more than 0, it will decrement)~~
 
